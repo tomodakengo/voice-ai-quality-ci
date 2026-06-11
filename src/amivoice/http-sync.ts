@@ -15,6 +15,24 @@
 import { config, assertAmivoiceKey } from "../config.js";
 import type { AmiVoiceResult, AmiVoiceSegment } from "./types.js";
 
+/**
+ * d パラメータ(認識条件)をスペース区切り key=value で組む。
+ * AmiVoice の d は WebSocket の s コマンド同様スペース区切り。&区切りは不可。
+ */
+export function buildD(opts: {
+  grammar: string;
+  profileId?: string;
+  profileWords?: string;
+  keepFillerToken?: boolean;
+}): string {
+  const parts = [`grammarFileNames=${opts.grammar}`];
+  if (opts.profileId) parts.push(`profileId=${opts.profileId}`);
+  // profileWords はコンパクトJSON(スペースなし)前提。スペースがあると d の区切りと衝突する。
+  if (opts.profileWords) parts.push(`profileWords=${opts.profileWords.replace(/\s+/g, "")}`);
+  if (opts.keepFillerToken) parts.push("keepFillerToken=1");
+  return parts.join(" ");
+}
+
 export interface HttpSyncOptions {
   audio: Blob | Buffer;
   contentType?: string; // 例: "audio/wav", "audio/x-pcm;bit=16;rate=16000"
@@ -30,16 +48,14 @@ export async function recognizeSync(
   const appkey = assertAmivoiceKey();
   const grammar = opts.grammar ?? config.amivoice.grammar;
 
-  // d パラメータ(認識条件)。grammarFileNames を必ず入れる。
-  const d = new URLSearchParams();
-  d.set("grammarFileNames", grammar);
-  if (opts.profileId) d.set("profileId", opts.profileId);
-  if (opts.profileWords) d.set("profileWords", opts.profileWords);
-  if (opts.keepFillerToken) d.set("keepFillerToken", "1");
+  // d パラメータ(認識条件)。★AmiVoice の d は「スペース区切り」key=value。
+  //   URLSearchParams(=&区切り)で組むと "received illegal service authorization" になる(gotchas#16)。
+  //   profileWords はスペースを含まないコンパクトJSON(JSON.stringify既定)であること。
+  const d = buildD({ grammar, profileId: opts.profileId, profileWords: opts.profileWords, keepFillerToken: opts.keepFillerToken });
 
   const form = new FormData();
   form.set("u", appkey);
-  form.set("d", d.toString());
+  form.set("d", d);
   const blob =
     opts.audio instanceof Blob
       ? opts.audio

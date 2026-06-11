@@ -50,17 +50,22 @@ AmiVoice `-a-general` / HTTP同期 / 各1回 / SAPI Haruka 16kHz mono / 音声�
 | **平均** | | | **7.9%** | **6.3%** | **4.8%** |
 
 ### 2-2.【実測】ノイズSNR段階別CER
-AmiVoice `-a-general` / HTTP同期 / 3ケース / 校正済ホワイトノイズ(実SNR=計算値) / 試行12回 / 音声計43.1秒
-`npm run measure:snr`
+AmiVoice `-a-general` / HTTP同期 / **6ケース** / 校正済ホワイトノイズ(実SNR=計算値) / 試行24回 / 音声計91.2秒
+`npm run measure:snr -- --cases order-001,order-002,schedule-001,schedule-002,domain-001,filler-001`
 
 | SNR | ケース平均CER | 試行 | order-001の認識 |
 |---|---|---|---|
-| clean | 12.7% | 3 | ホットコーヒーを一杯ください(0%) |
-| 20dB | 12.7% | 3 | ホットコーヒーを一杯ください(0%) |
-| 10dB | 46.0% | 3 | **パソコンBをいっぱいください**(71%) |
-| 5dB | 48.4% | 3 | ポストコンビニを1回ください(50%) |
+| clean | 7.9% | 6 | ホットコーヒーを一杯ください(0%) |
+| 20dB | 7.9% | 6 | ホットコーヒーを一杯ください(0%) |
+| 10dB | 24.6% | 6 | **パソコンBをいっぱいください**(71%) |
+| 5dB | 27.7% | 6 | ポストコンビニを1回ください(50%) |
 
-→ **20dBまで劣化ゼロ、10dBで崖**。filler-001ベースライン誤りがclean平均を押し上げ。
+→ **20dBまで劣化ゼロ、10dBで崖**。語による頑健性差(domain-001は5dBでも11.5%, order-001は10dBで崩壊)。
+
+### 2-2b.【実測】ユーザー辞書(profileWords)before/after — **有意差なし**
+profileWords=JSON配列(`{written,spoken,classname?}`)/ `-a-general` / 5条件で実測。
+ノイズ下(音響崩壊で復元不能)・clean(汎用エンジンが躑躅森/AmiVoice/造語まで辞書なしで正解)とも
+**CER改善差ゼロ**。配管は正しく動作(下記§3-6で当初バグを修正)。記事では「辞書効果は条件依存・本検証では有意差なし」と書く。
 
 ### 2-3.【実測】エンジン比較(会話汎用 vs 音声入力向け)
 `-a-general` vs `-a-general-input` / HTTP同期 / 3ケース / clean & 10dB / 試行12回 / 音声計39.0秒
@@ -147,6 +152,15 @@ simulated ASR / 288行 / `npm run eval`。誤り伝播の単調性(CER↑→judg
    原文: `ffmpeg: command not found`。
    原因: TTSの素の出力とASR要求フォーマットの不一致。
    回避: 依存ゼロのNode製リサンプラ(`scripts/resample-wav.ts`)で22.05k→16k。
+
+6. **HTTP同期の `d` パラメータはスペース区切り(`&`不可)**
+   原文: `received illegal service authorization`(パラメータ2個目を足した瞬間に全失敗)。
+   原因: `d` を `URLSearchParams`(`&`区切り)で組んでいた。AmiVoiceの`d`はWSの`s`同様**スペース区切り**。
+   パラメータ1個のときは区切り不要で**たまたま動いていた**。
+   回避: `d`をスペース区切りで自前構築(`src/amivoice/http-sync.ts:buildD`)。profileWordsはJSON(スペース無)。
+
+7. **profileWordsの形式はJSON配列**(当初テキストで失敗)。`[{"written","spoken","classname?"}]`。
+   出典: https://docs.amivoice.com/en/amivoice-api/manual/reference-profilewords/
 
 その他: ペアワイズ貪欲法の第1因子固着(seed-from-uncovered法で解決)、
 Buffer→BlobPart型エラー(`Uint8Array.from`)、Windowsコンソール文字化け(JSON出力を正とする)。
@@ -300,8 +314,8 @@ export function addNoiseAtSnr(signal, snrDb, seed = 12345) {
 
 | 項目 | 状態 | 理由 |
 |---|---|---|
-| **ユーザー辞書(profileWords)before/after** | **未測定** | インライン`profileWords`形式が不明で空応答。正しくは管理コンソール登録の`profileId`参照と推測(一次未確認)。記事では「辞書効果は未検証」と書く。 |
-| **汎用 vs ドメイン特化エンジン**の実測 | **未測定** | `-a-medgeneral`等は無償クーポンで空応答(権限なし)。代わりに`-a-general` vs `-a-general-input`を実測。 |
+| **ユーザー辞書(profileWords)の効果** | **測定済・有意差なし** | 形式(JSON配列)と配置(d=スペース区切り)を正して実測。ノイズ下・clean固有名詞/造語の5条件で**CER改善差ゼロ**。記事では「効果は条件依存・本検証では有意差なし」と書く(「効く」と断定しない)。 |
+| **汎用 vs ドメイン特化エンジン**の実測 | **未測定** | `-a-medgeneral`等は無償クーポンで空応答(権限なし)。代わりに`-a-general` vs `-a-general-input`を実測(2-3節)。 |
 | 特化エンジン/辞書のCER差(§2-7の表) | **シミュレータ値** | 実APIで測れず。決定的モデルの値。実測と混同させない。 |
 | 話速変更下の実測CER | **未測定** | ffmpeg無しのためNode擬似話速(リサンプル=ピッチ変化あり)に留め、実測は見送り。 |
 | **GitHub Actions上での成功ログ** | **未実行** | 本セッションでpushしていない。YAML(`.github/workflows/`)は用意、ローカルで同等コマンド(typecheck/unit/eval:smoke/e2e)は緑を確認済み。実ログはpush後に取得が必要。 |

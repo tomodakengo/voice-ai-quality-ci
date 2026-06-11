@@ -199,16 +199,56 @@ if (json.message && json.message.trim())
 
 ---
 
-## 14. ユーザー辞書(profileWords)のインライン登録形式が不明 → 未測定
+## 14. ユーザー辞書(profileWords)の形式は JSON 配列(当初スペース区切りで失敗)
 
-**症状**: `profileWords` を `d` パラメータ内に「表記 よみ 品詞」「表記\t品詞\tよみ」等で渡すと、
-いずれも**空応答**になり認識結果が得られない。
+**症状(当初)**: `profileWords` を「表記 よみ 品詞」「表記\t品詞\tよみ」等のテキストで渡すと
+**空応答 or 認証エラー**。
 
-**原因(推定)**: インライン `profileWords` の正確な形式、または事前に管理コンソールで登録した
-`profileId` を参照する方式が要る可能性。**一次ドキュメントで未確認**。
+**原因**: profileWords の正しい形式は **JSON 配列**(一次確認、下記リンク):
+```json
+[{"written":"AMI","spoken":"あみ"},{"written":"躑躅森","spoken":"つつじもり","classname":"名前"}]
+```
+`written`(表記)/ `spoken`(カタカナ読み)/ 任意 `classname`(クラス)。
+profileId と併用すると profileWords が優先。
+出典: https://docs.amivoice.com/en/amivoice-api/manual/reference-profilewords/
 
-**対応**: 時間制約(タイムボックス)によりここで打ち切り。**辞書 before/after の実測は未達**とし、
-シミュレータ値(results.md F)のみ提示。記事では「辞書の効果は未検証」と明記する(推測で書かない)。
+**さらなる罠**: この JSON を `d` に入れても、**`d` がスペース区切りでないと失敗**する(gotcha#16)。
+profileWords の JSON は `JSON.stringify` 既定の**スペースなし**にすること(スペースがあると d 区切りと衝突)。
+
+**測定結果**: 形式・配置を正した上で order-001(10dB/5dB ノイズ)と固有名詞ケース
+(躑躅森 / AmiVoice / 造語 ぐるぐるぺん)で before/after を実測したが、**CER 改善は観測されず**:
+- ノイズ下: 音響的に `ホットコーヒー`→`パソコンB` と崩れており、単語登録(言語モデル側のバイアス)では復元不能。
+- clean: `-a-general` が躑躅森・AmiVoice・造語まで**辞書なしで正解**(改善余地なし)。
+
+**結論**: 辞書の配管は正しく動く(リクエスト成功)が、**今回の条件(明瞭なTTS音声+強力な汎用エンジン)
+では可視の改善差を作れなかった**。辞書が効くのは「明瞭だが真にOOVな語/同音衝突」のはずで、
+SAPI音声でその条件を作れなかった(タイムボックスで打ち切り)。記事では「効果は条件依存・本検証では
+有意差なし」と正確に書く。
+
+---
+
+## 16.【重要】HTTP同期の `d` パラメータは「スペース区切り」key=value(`&`区切り不可)
+
+**症状**: grammarFileNames に加えて profileWords など**2つ目のパラメータ**を `d` に足すと、
+`received illegal service authorization`(認証エラー)で**全リクエストが失敗**。1つだけなら成功。
+
+**原因**: `d` を `URLSearchParams`(=`&` 区切り)で組んでいた。AmiVoice の `d` は
+**WebSocket の `s` コマンド同様スペース区切り**。`grammarFileNames=-a-general&profileWords=...` だと
+`&` 以降が壊れ、AmiVoice はリクエスト全体を不正と見なし**認証エラーを返す**(誤解を招くメッセージ)。
+パラメータ1個(`grammarFileNames=-a-general`)のときは区切りが要らず**たまたま動いていた**。
+
+**検証**(同一音声・同一キー):
+| d の組み方 | 結果 |
+|---|---|
+| `grammarFileNames=-a-general profileWords=[...]`(スペース) | ✅ 成功 |
+| `grammarFileNames=-a-general&profileWords=[...]`(&) | ❌ illegal service authorization |
+| profileWords を別フォームフィールド | ❌ illegal service authorization |
+
+**回避策**: `d` をスペース区切りで自前構築(`src/amivoice/http-sync.ts:buildD`)。
+profileWords の JSON はスペースを除去してから入れる。
+
+**教訓**: 「1個だと動くが2個目で壊れる」系は区切り文字の取り違えを疑う。
+HTTP同期の `d` と WebSocket の `s` は**同じスペース区切り文法**で統一されている。
 
 ---
 

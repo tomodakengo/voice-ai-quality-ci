@@ -10,7 +10,7 @@
  */
 import { config, assertAmivoiceKey } from "../config.js";
 import type { AmiVoiceResult } from "./types.js";
-import { normalize } from "./http-sync.js";
+import { normalize, buildD } from "./http-sync.js";
 
 export interface HttpAsyncOptions {
   audio: Blob | Buffer;
@@ -45,13 +45,12 @@ export async function recognizeAsync(
   const appkey = assertAmivoiceKey();
   const grammar = opts.grammar ?? config.amivoice.grammar;
 
-  const d = new URLSearchParams();
-  d.set("grammarFileNames", grammar);
-  if (opts.profileWords) d.set("profileWords", opts.profileWords);
+  // ★ d はスペース区切り(http-sync の buildD と共通。&区切り不可)
+  const d = buildD({ grammar, profileWords: opts.profileWords });
 
   const form = new FormData();
   form.set("u", appkey);
-  form.set("d", d.toString());
+  form.set("d", d);
   const blob =
     opts.audio instanceof Blob
       ? opts.audio
