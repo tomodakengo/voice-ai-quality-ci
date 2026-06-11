@@ -318,10 +318,10 @@ export function addNoiseAtSnr(signal, snrDb, seed = 12345) {
 | **汎用 vs ドメイン特化エンジン**の実測 | **未測定** | `-a-medgeneral`等は無償クーポンで空応答(権限なし)。代わりに`-a-general` vs `-a-general-input`を実測(2-3節)。 |
 | 特化エンジン/辞書のCER差(§2-7の表) | **シミュレータ値** | 実APIで測れず。決定的モデルの値。実測と混同させない。 |
 | 話速変更下の実測CER | **未測定** | ffmpeg無しのためNode擬似話速(リサンプル=ピッチ変化あり)に留め、実測は見送り。 |
-| **GitHub Actions上での成功ログ** | **未実行** | 本セッションでpushしていない。YAML(`.github/workflows/`)は用意、ローカルで同等コマンド(typecheck/unit/eval:smoke/e2e)は緑を確認済み。実ログはpush後に取得が必要。 |
+| ~~GitHub Actions上での成功ログ~~ | **✅ 実行済・成功** | `github.com/tomodakengo/voice-ai-quality-ci`(private)に push。`ci`(24s)・`e2e`(53s)とも green。E2Eはクラウドの ubuntu headless Chromium で fake-audio が届き(peak RMS 0.559)、**4 passed**。記事には「CIでfake-audio E2Eが緑」と書ける。 |
 | 非同期HTTP(recognitions)の実測 | **未実行** | 実装はあるが長尺音声が無く未検証。エンドポイント/ポーリング仕様はコードのコメント参照(要一次確認)。 |
 | WS `s`応答のエラー文字列ハンドリング | **簡易** | 成功時空応答前提。`s <error>`形式のエラーは未テスト(実WSは成功したため未踏)。 |
-| 音声長あたりの課金・レイテンシ詳細 | **未測定** | API使用量合計は記録(約5〜6分)したが、レイテンシのベンチは未実施。 |
+| 音声長あたりの課金・レイテンシ詳細 | **未測定** | API使用量合計は記録(約8〜9分)したが、レイテンシのベンチは未実施。 |
 
 ---
 
@@ -361,7 +361,10 @@ export function addNoiseAtSnr(signal, snrDb, seed = 12345) {
 
 ### 7-7. 無償クーポン(公開情報・記事掲載可)📄
 - コード `Na5bkyRHoi`(月10時間, 5・6月)/ 案内: https://acp.amivoice.com/blog/zenn_2026/
-- 本検証のAPI使用量合計: **約5〜6分**(枠の約1%)。**APIキーは未コミット**(.env + .gitignore + check-secrets)。
+- 本検証のAPI使用量合計: **約8〜9分**(枠の約1.5%)。**APIキーは未コミット**(.env + .gitignore + check-secrets)。
+- CI実走: `github.com/tomodakengo/voice-ai-quality-ci`(private) — `ci`/`e2e` とも ✅ success(クラウドの
+  ubuntu headless Chromium で fake-audio E2E が緑: peak RMS 0.559, 4 passed)。実APIE2E(real-amivoice.spec)は
+  CIではキー無しのため skip(設計通り)。実APIE2Eはローカルで ✅ green を確認済み。
 
 ---
 
