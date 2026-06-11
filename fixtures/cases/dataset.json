@@ -1,0 +1,50 @@
+{
+  "_comment": "評価ハーネスの基準データ。text=正解の書き起こし(CER計算の参照)、expected=LLM抽出の期待値。speaker/speed等は VOICEVOX 合成パラメータ。",
+  "cases": [
+    {
+      "id": "order-001",
+      "text": "ホットコーヒーを一杯ください",
+      "domain": "cafe",
+      "expected": { "intent": "order", "item": "ホットコーヒー", "quantity": 1, "datetime": null, "modifiers": ["ホット"] },
+      "tts": { "speaker": 3, "speedScale": 1.0 }
+    },
+    {
+      "id": "order-002",
+      "text": "アイスカフェラテをラージで二つお願いします",
+      "domain": "cafe",
+      "expected": { "intent": "order", "item": "カフェラテ", "quantity": 2, "datetime": null, "modifiers": ["アイス", "ラージ"] },
+      "tts": { "speaker": 3, "speedScale": 1.0 }
+    },
+    {
+      "id": "schedule-001",
+      "text": "来週の月曜日に定例会議を設定してください",
+      "domain": "office",
+      "expected": { "intent": "schedule", "item": "定例会議", "quantity": null, "datetime": "来週の月曜日", "modifiers": [] },
+      "tts": { "speaker": 2, "speedScale": 1.0 }
+    },
+    {
+      "id": "schedule-002",
+      "text": "明日の十五時にミーティングを入れてください",
+      "domain": "office",
+      "expected": { "intent": "schedule", "item": null, "quantity": null, "datetime": "明日の十五時", "modifiers": [] },
+      "tts": { "speaker": 2, "speedScale": 1.1 }
+    },
+    {
+      "id": "domain-001",
+      "text": "デシベルとサンプリングレートの設定を確認してください",
+      "domain": "tech",
+      "expected": { "intent": "schedule", "item": null, "quantity": null, "datetime": null, "modifiers": [] },
+      "tts": { "speaker": 8, "speedScale": 1.0 },
+      "note": "ドメイン用語(技術)を含む。汎用エンジン vs 特化エンジン/辞書の差を見るケース。"
+    },
+    {
+      "id": "filler-001",
+      "text": "えーっと、ホットコーヒーをですね、一杯ください",
+      "normalizedText": "ホットコーヒーを一杯ください",
+      "domain": "cafe",
+      "expected": { "intent": "order", "item": "ホットコーヒー", "quantity": 1, "datetime": null, "modifiers": ["ホット"] },
+      "tts": { "speaker": 3, "speedScale": 0.9 },
+      "note": "フィラー(えーっと/ですね)入り。keepFillerToken と正規化の効きを見るケース。"
+    }
+  ]
+}

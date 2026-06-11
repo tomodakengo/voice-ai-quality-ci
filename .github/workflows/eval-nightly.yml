@@ -1,0 +1,49 @@
+name: eval-nightly
+
+# フルセット評価。手動 or 夜間。実 AmiVoice を使う場合のみ Secrets を参照する。
+# クーポン枠(月10時間)保護のため、既定はシミュレータ。実APIは workflow_dispatch の入力で明示。
+on:
+  schedule:
+    - cron: "0 18 * * *" # 03:00 JST
+  workflow_dispatch:
+    inputs:
+      use_real_api:
+        description: "実 AmiVoice API を使う(クーポン消費)"
+        type: boolean
+        default: false
+
+jobs:
+  eval-full:
+    runs-on: ubuntu-latest
+    env:
+      # 実API利用は入力が true のときだけ。Secrets が無ければ自動でモック/シミュレータ。
+      USE_MOCK_ASR: ${{ github.event.inputs.use_real_api == 'true' && 'false' || 'true' }}
+      AMIVOICE_APPKEY: ${{ secrets.AMIVOICE_APPKEY }}
+      ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: ペアワイズ設計(全組み合わせ vs ペアワイズ件数)
+        run: python scripts/pairwise.py eval/factors.pict --json eval/out/pairwise.json
+      - name: 評価ハーネス(フルセット)
+        run: |
+          if [ "${{ github.event.inputs.use_real_api }}" = "true" ]; then
+            npm run gen:wav
+            npx tsx scripts/run-eval.ts --real --llm
+          else
+            npm run eval
+          fi
+      - name: アーティファクト保存(評価結果)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: eval-full
+          path: |
+            eval/out/eval-full.json
+            eval/out/pairwise.json
+          if-no-files-found: ignore
+          retention-days: 30

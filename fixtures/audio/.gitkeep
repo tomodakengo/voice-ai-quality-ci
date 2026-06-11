@@ -1,0 +1,2 @@
+# 生成済み WAV はここに置く(.gitignore で *.wav は除外)。
+# `npm run -s gen:wav` または scripts/gen-fixtures.* で再生成する。

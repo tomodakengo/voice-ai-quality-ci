@@ -1,0 +1,28 @@
+# secrets — NEVER commit API keys
+.env
+.env.local
+*.key
+
+# deps & build
+node_modules/
+dist/
+*.tsbuildinfo
+
+# playwright
+test-results/
+playwright-report/
+blob-report/
+.playwright/
+
+# generated audio fixtures (large binaries; regenerate via scripts/)
+fixtures/audio/*.wav
+fixtures/audio/*.raw
+!fixtures/audio/.gitkeep
+
+# eval run outputs
+eval/out/
+*.local.json
+
+# OS
+.DS_Store
+Thumbs.db

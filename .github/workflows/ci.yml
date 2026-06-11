@@ -1,0 +1,35 @@
+name: ci
+
+# PRごとの軽量チェック。実APIは叩かない(クーポン枠 月10時間 を守る)。
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    env:
+      USE_MOCK_ASR: "true" # 実AmiVoiceは使わない
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: 秘密情報チェック(APIキー混入)
+        run: npm run check-secrets
+      - name: 型チェック
+        run: npm run typecheck
+      - name: ユニットテスト(CER/正規化/抽出/judge)
+        run: npm run test:unit
+      - name: 評価ハーネス(スモーク, シミュレータ)
+        run: npm run eval:smoke
+      - name: アーティファクト保存(評価結果JSON)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: eval-smoke
+          path: eval/out/eval-smoke.json
+          if-no-files-found: ignore
