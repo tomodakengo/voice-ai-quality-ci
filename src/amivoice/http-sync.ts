@@ -80,8 +80,11 @@ interface RawSyncResponse {
 }
 
 export function normalize(json: RawSyncResponse): AmiVoiceResult {
-  if (json.message && !json.results) {
-    throw new Error(`AmiVoice error ${json.code ?? ""}: ${json.message}`);
+  // ★重要: AmiVoice は認証失敗等でも HTTP 200 を返し、エラーは body の message に入る。
+  //   例: {"results":[{"text":"",...}],"text":"","code":"-","message":"received illegal service authorization"}
+  //   results が空配列で存在するため「!json.results」だけでは捕捉できない。message 非空で必ず弾く。
+  if (json.message && json.message.trim()) {
+    throw new Error(`AmiVoice error (code=${json.code ?? "?"}): ${json.message}`);
   }
   const results: AmiVoiceSegment[] = (json.results ?? []).map((r) => ({
     text: r.text ?? "",
