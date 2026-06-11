@@ -163,3 +163,61 @@ DOM の `BlobPart`(`ArrayBufferView<ArrayBuffer>`)に代入不可。
 
 **回避策**: 数値・判定は**ファイル(JSON / Markdown, UTF-8)出力を正**とし、コンソールは参考。
 抽出ロジックの確認は curl ではなく `tsx` スクリプト経由で行い、シェルのエンコード問題を回避。
+
+---
+
+## 12.【重要】AmiVoice は認証失敗でも HTTP 200 を返す(エラーは body の message)
+
+**症状**: 不正な APPKEY で叩いても **HTTP ステータスは 200**。`res.ok` を信じると失敗を見逃す。
+実際のレスポンス原文:
+```json
+{"results":[{"tokens":[],"tags":[],"rulename":"","text":""}],"text":"","code":"-","message":"received illegal service authorization"}
+```
+
+**原因**: AmiVoice HTTP同期はアプリ層エラー(認証/パラメータ不正)を **body の `message`** で返す。
+しかも `results` は**空配列で存在する**ため、「`!json.results` のときだけ throw」では捕捉できない
+(自前コードの初期実装がまさにこのバグで、認証失敗を「無音」として握り潰していた)。
+
+**回避策**: `message` が非空なら必ず例外化する(`src/amivoice/http-sync.ts: normalize`)。
+```ts
+if (json.message && json.message.trim())
+  throw new Error(`AmiVoice error (code=${json.code}): ${json.message}`);
+```
+
+**教訓**: 外部ASR APIは「HTTPステータス」ではなく「**body のステータスフィールド**」で
+成否判定する。回帰テストの assertion もここを見ること。
+
+---
+
+## 13. 不正入力は「エラー」ではなく「無音(空応答)」に落ちる
+
+**症状**: ゴミバイト列・存在しない grammar 名(`-a-nonexistent-engine`)・0バイトを送っても
+例外は出ず、`text:""`(空)が返る。
+
+**回避策**: ハーネス側で「空応答」を**異常として扱うか正常な無音として扱うか**を明示。
+本PoCは CER 計測時に空応答を CER=100%(全削除)として扱い、表では「無音」と区別表記。
+
+---
+
+## 14. ユーザー辞書(profileWords)のインライン登録形式が不明 → 未測定
+
+**症状**: `profileWords` を `d` パラメータ内に「表記 よみ 品詞」「表記\t品詞\tよみ」等で渡すと、
+いずれも**空応答**になり認識結果が得られない。
+
+**原因(推定)**: インライン `profileWords` の正確な形式、または事前に管理コンソールで登録した
+`profileId` を参照する方式が要る可能性。**一次ドキュメントで未確認**。
+
+**対応**: 時間制約(タイムボックス)によりここで打ち切り。**辞書 before/after の実測は未達**とし、
+シミュレータ値(results.md F)のみ提示。記事では「辞書の効果は未検証」と明記する(推測で書かない)。
+
+---
+
+## 15. ドメイン特化エンジンは無償クーポンで空応答(権限なし)
+
+**症状**: `-a-medgeneral`(医療)・`-a-bizmrreps`・`-a-financegeneral` を指定すると
+例外は出ないが**認識結果が空**。`-a-general` / `-a-general-input` は正常。
+
+**原因(推定)**: 無償クーポンの権限範囲。特化エンジンは契約/エントリが別途必要と思われる(未確認)。
+
+**対応**: エンジン比較は利用可能な `-a-general`(会話汎用) vs `-a-general-input`(音声入力向け)で実施。
+「汎用 vs ドメイン特化」の実測は**未達**(results.md G の未達項目に記載)。

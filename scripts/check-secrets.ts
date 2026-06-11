@@ -64,11 +64,13 @@ async function main(): Promise<void> {
         findings++;
       }
     }
-    // 値の入った env 代入(KEY=実値)を検出
+    // 値の入った env 代入(KEY=実値)を検出。
+    // 「キーらしい値」= 英数記号12文字以上 のみ対象(日本語の説明文や空値は除外)。
     const assign = content.match(/(AMIVOICE_APPKEY|ANTHROPIC_API_KEY)\s*=\s*([^\s#"']+)/g) ?? [];
     for (const a of assign) {
       const val = a.split("=")[1]?.trim() ?? "";
-      if (val && !ALLOW.includes(val) && !file.endsWith(".example")) {
+      const looksLikeKey = /^[A-Za-z0-9_\-.]{12,}$/.test(val);
+      if (looksLikeKey && !ALLOW.includes(val) && !file.endsWith(".example")) {
         console.error(`❌ ${file}: APIキーに実値が入っています: ${a.slice(0, 24)}…`);
         findings++;
       }
