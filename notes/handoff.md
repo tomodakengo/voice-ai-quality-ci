@@ -23,9 +23,10 @@
    同じ認識結果でも平均CER 7.9%→4.8%(数詞`十五時`↔`15時`、フィラー、句読点の畳み方)。
    **正規化ルールを明文化しないとCER比較は無意味**。
 
-4. **エンジン選択は効く:ノイズ下で `-a-general-input` が `-a-general` に圧勝。**
-   clean では同等(CER 3.2%)だが、10dBノイズで 36.5% vs **14.3%**。短い発話コマンドは
-   音声入力向けエンジンが頑健。一方ドメイン特化エンジンは無償クーポンでは空応答(権限なし)。
+4. **エンジン選択はノイズ下で効く(ただし圧勝ではない)。**
+   clean では同等(CER 3.2%)。10dBノイズ下で `-a-general-input` が**平均優位**(5seed: 28.7% vs 19.8%)。
+   ただし seed依存で5本中2本は逆転、`schedule-002` では input が悪化。「平均的に有利、万能ではない」が正確。
+   ドメイン特化エンジンは無償クーポンでは空応答(権限なし)。
 
 5. **AmiVoiceは認証失敗でもHTTP 200を返す。**
    エラーは body の `message`("received illegal service authorization")にしか出ない。
@@ -83,16 +84,19 @@ profileWords=JSON配列(`{written,spoken,classname?}`)/ `-a-general` / 5条件�
 ノイズ下(音響崩壊で復元不能)・clean(汎用エンジンが躑躅森/AmiVoice/造語まで辞書なしで正解)とも
 **CER改善差ゼロ**。配管は正しく動作(下記§3-6で当初バグを修正)。記事では「辞書効果は条件依存・本検証では有意差なし」と書く。
 
-### 2-3.【実測】エンジン比較(会話汎用 vs 音声入力向け)
-`-a-general` vs `-a-general-input` / HTTP同期 / 3ケース / clean & 10dB / 試行12回 / 音声計39.0秒
-`npm run measure:engine`
+### 2-3.【実測】エンジン比較(会話汎用 vs 音声入力向け)★こちらも多seedで補正(2026-06-12)
+`-a-general` vs `-a-general-input` / HTTP同期 / 3ケース / clean & 10dB×seed5本 / 試行36コール / 音声計117.1秒
+`npm run measure:engine:robust`
 
-| 条件 | エンジン | ケース平均CER | 試行 |
+| 条件 | エンジン | macro CER(seed間 mean±σ) | seed間レンジ |
 |---|---|---|---|
-| clean | -a-general | 3.2% | 3 |
-| clean | -a-general-input | 3.2% | 3 |
-| 10dB | -a-general | 36.5% | 3 |
-| **10dB** | **-a-general-input** | **14.3%** | 3 |
+| clean | -a-general / -input | 3.2% / 3.2%(決定的) | — |
+| 10dB | -a-general | **28.7% ± 7.7pt** | 17.5〜36.5% |
+| **10dB** | **-a-general-input** | **19.8% ± 7.6pt** | 9.5〜27.8% |
+
+→ **input は平均優位だが圧勝ではない**(10dB seed別の勝敗 input 3 / general 2)。単発の「36.5 vs 14.3」は
+最も差が開いた引き。さらにケース依存が強く `schedule-002` は input が `ミーティング`→`YouTube` と**悪化**(general は全seed 9.5%)。
+記事は「ノイズ下では音声入力向けが**平均的に**有利。万能ではなくケース・条件で測って選ぶ」と書くのが正確。
 
 ### 2-4.【実測】WAVフォーマット受理性
 AmiVoice側 / HTTP同期 / order-001実音声 / 試行8回 / `npm run measure:format`

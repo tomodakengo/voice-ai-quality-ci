@@ -21,6 +21,7 @@
     "measure:snr": "tsx scripts/measure-snr.ts",
     "measure:snr:robust": "tsx scripts/measure-snr-robust.ts",
     "measure:engine": "tsx scripts/measure-engine.ts",
+    "measure:engine:robust": "tsx scripts/measure-engine-robust.ts",
     "measure:format": "tsx scripts/measure-wav-format.ts",
     "pipeline:real": "npm run resample && npm run measure:real && npm run measure:snr && npm run measure:engine",
     "pipeline:full": "npm run gen:sapi && npm run pipeline:real",
