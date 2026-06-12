@@ -19,6 +19,7 @@
     "resample": "tsx scripts/resample-wav.ts --glob *.sapi.wav",
     "measure:real": "tsx scripts/measure-real.ts",
     "measure:snr": "tsx scripts/measure-snr.ts",
+    "measure:snr:robust": "tsx scripts/measure-snr-robust.ts",
     "measure:engine": "tsx scripts/measure-engine.ts",
     "measure:format": "tsx scripts/measure-wav-format.ts",
     "pipeline:real": "npm run resample && npm run measure:real && npm run measure:snr && npm run measure:engine",

@@ -49,18 +49,34 @@ AmiVoice `-a-general` / HTTP同期 / 各1回 / SAPI Haruka 16kHz mono / 音声�
 | filler-001 | えーっと、ホットコーヒーをですね、一杯ください | (えーっと脱落 / **いっぱい**) | 38.1% | 38.1% | 28.6% |
 | **平均** | | | **7.9%** | **6.3%** | **4.8%** |
 
-### 2-2.【実測】ノイズSNR段階別CER
-AmiVoice `-a-general` / HTTP同期 / **6ケース** / 校正済ホワイトノイズ(実SNR=計算値) / 試行24回 / 音声計91.2秒
-`npm run measure:snr -- --cases order-001,order-002,schedule-001,schedule-002,domain-001,filler-001`
+### 2-2.【実測】ノイズSNR段階別CER ★多seedで結論が変わった(2026-06-12)
+AmiVoice `-a-general` / HTTP同期 / **6ケース × SNR5段 × seed5本=126コール** / 校正済ホワイトノイズ(実SNR=計算値) / 音声計478.5秒
+`npm run measure:snr:robust`
 
-| SNR | ケース平均CER | 試行 | order-001の認識 |
+| SNR | macro CER(seed間 mean±σ) | seed間レンジ | 試行 |
 |---|---|---|---|
-| clean | 7.9% | 6 | ホットコーヒーを一杯ください(0%) |
-| 20dB | 7.9% | 6 | ホットコーヒーを一杯ください(0%) |
-| 10dB | 24.6% | 6 | **パソコンBをいっぱいください**(71%) |
-| 5dB | 27.7% | 6 | ポストコンビニを1回ください(50%) |
+| clean | 7.9%(決定的) | — | 6 |
+| 20dB | **9.5% ± 2.4pt** | 7.9〜13.5% | 5seed×6 |
+| 15dB | **18.7% ± 4.9pt** | 13.5〜23.0% | 5seed×6 |
+| 10dB | **20.7% ± 3.8pt** | 15.1〜24.6% | 5seed×6 |
+| 5dB | **26.6% ± 3.3pt** | 21.0〜29.3% | 5seed×6 |
 
-→ **20dBまで劣化ゼロ、10dBで崖**。語による頑健性差(domain-001は5dBでも11.5%, order-001は10dBで崩壊)。
+→ **「崖」は単発測定のまやかしだった**。当初の seed1本では「20dBまでゼロ→10dBで崖(24.6%)」に見えたが、
+5seed平均では劣化の立ち上がりは **20→15dB**、形は**ばらつきの大きいスロープ**。例の「パソコンB(71%)」は
+10dBの**5本中の最悪引き**(order-001 10dB は 14〜71% に散り mean 47%±22pt)。
+**同じSNRでCERが2〜3倍ブレる=単発測定で閾値を引くとテストがフレーク**(§3-7)。
+一方で頑健なセルは完全に決定的(domain-001 5dB=全5本11.5%, filler-001 10dB=全5本38.1%)→ 閾値はケース別が妥当。
+
+### 2-2c.【実測】recognize レイテンシ(HTTP同期 / 126コール / 回線往復込み / 2026-06-12)
+| 指標 | 値 |
+|---|---|
+| mean | 1,212 ms |
+| median(p50) | 1,128 ms |
+| **p95** | **2,091 ms** |
+| min / max | 428 / 4,327 ms |
+
+→ 約3.8秒クリップで p50約1.1秒・p95約2.1秒。**精度の次に見るレイテンシSLO**の素材。max 4.3秒は5dB重ノイズで発生
+(音響が崩れる入力ほど応答も遅い傾向、母数小)。回線・時間帯依存。長尺/WSストリーミングは別物(未測定)。
 
 ### 2-2b.【実測】ユーザー辞書(profileWords)before/after — **有意差なし**
 profileWords=JSON配列(`{written,spoken,classname?}`)/ `-a-general` / 5条件で実測。
@@ -127,7 +143,13 @@ simulated ASR / 288行 / `npm run eval`。誤り伝播の単調性(CER↑→judg
 
 ## 3. ハマったポイント(時系列・原文→原因→回避策)
 
-詳細は `notes/gotchas.md`(全15項目)。記事採用候補の上位5つ:
+詳細は `notes/gotchas.md`(全17項目)。記事採用候補の上位6つ:
+
+0. **【自戒・等身大の核】「崖」の数字は単発測定で、5回回したら結論が変わった**(gotchas#17)
+   QAの癖で「この数字フレークじゃない?」とノイズseedを5本に振ったら、崖の位置が10dB→20-15dBにずれ、
+   同じSNRでCERが2〜3倍ブレた。「パソコンB 71%」は最悪引きの単発値。**乱数を含むテストは1回緑でも信用しない**
+   というQAの基本をASR評価に持ち込んだら当たった。→ **記事のオチに最適**(単発→多seedで均す物語)。
+
 
 1. **AmiVoiceは認証失敗でもHTTP 200**
    原文: `{"results":[{"text":""}],"code":"-","message":"received illegal service authorization"}`
@@ -321,7 +343,8 @@ export function addNoiseAtSnr(signal, snrDb, seed = 12345) {
 | ~~GitHub Actions上での成功ログ~~ | **✅ 実行済・成功** | `github.com/tomodakengo/voice-ai-quality-ci`(private)に push。`ci`(24s)・`e2e`(53s)とも green。E2Eはクラウドの ubuntu headless Chromium で fake-audio が届き(peak RMS 0.559)、**4 passed**。記事には「CIでfake-audio E2Eが緑」と書ける。 |
 | 非同期HTTP(recognitions)の実測 | **未実行** | 実装はあるが長尺音声が無く未検証。エンドポイント/ポーリング仕様はコードのコメント参照(要一次確認)。 |
 | WS `s`応答のエラー文字列ハンドリング | **簡易** | 成功時空応答前提。`s <error>`形式のエラーは未テスト(実WSは成功したため未踏)。 |
-| 音声長あたりの課金・レイテンシ詳細 | **未測定** | API使用量合計は記録(約8〜9分)したが、レイテンシのベンチは未実施。 |
+| recognize レイテンシ | **測定済(2026-06-12)** | HTTP同期/短尺の wall-clock を126コール計測(mean1.2s/p95 2.1s, §2-2c)。回線依存・長尺/WSは別物で未測定。 |
+| 音声長あたりの課金詳細 | **未測定** | API使用量合計は記録(約16〜17分)。課金単価・音声長との関係はベンチ未実施。 |
 
 ---
 
@@ -361,7 +384,7 @@ export function addNoiseAtSnr(signal, snrDb, seed = 12345) {
 
 ### 7-7. 無償クーポン(公開情報・記事掲載可)📄
 - コード `Na5bkyRHoi`(月10時間, 5・6月)/ 案内: https://acp.amivoice.com/blog/zenn_2026/
-- 本検証のAPI使用量合計: **約8〜9分**(枠の約1.5%)。**APIキーは未コミット**(.env + .gitignore + check-secrets)。
+- 本検証のAPI使用量合計: **約16〜17分**(多seed実測+8分を追加 / 枠の約2.8%)。**APIキーは未コミット**(.env + .gitignore + check-secrets)。
 - CI実走: `github.com/tomodakengo/voice-ai-quality-ci`(private) — `ci`/`e2e` とも ✅ success(クラウドの
   ubuntu headless Chromium で fake-audio E2E が緑: peak RMS 0.559, 4 passed)。実APIE2E(real-amivoice.spec)は
   CIではキー無しのため skip(設計通り)。実APIE2Eはローカルで ✅ green を確認済み。
